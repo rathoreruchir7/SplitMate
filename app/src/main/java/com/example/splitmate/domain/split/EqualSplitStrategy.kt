@@ -2,9 +2,18 @@ package com.example.splitmate.domain.split
 
 import com.example.splitmate.domain.model.ExpenseShare
 
-object EqualSplitStrategy : SplitStrategy {
+object EqualSplitStrategy : SplitStrategy<EqualSplitInput> {
 
     override fun calculateShares(
+        totalAmountInPaise: Long,
+        input: EqualSplitInput
+    ): List<ExpenseShare> {
+        return calculateShares(
+            totalAmountInPaise = totalAmountInPaise,
+            participantUserIds = input.participantUserIds
+        )
+    }
+    fun calculateShares(
         totalAmountInPaise: Long,
         participantUserIds: List<String>
     ): List<ExpenseShare> {

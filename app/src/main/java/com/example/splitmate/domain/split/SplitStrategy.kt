@@ -2,10 +2,10 @@ package com.example.splitmate.domain.split
 
 import com.example.splitmate.domain.model.ExpenseShare
 
-interface SplitStrategy {
+interface SplitStrategy <I : SplitInput> {
 
     fun calculateShares(
         totalAmountInPaise: Long,
-        participantUserIds: List<String>
+        input: I
     ): List<ExpenseShare>
 }
