@@ -4,6 +4,7 @@ import com.example.splitmate.domain.model.Expense
 import com.example.splitmate.domain.model.Group
 import com.example.splitmate.domain.model.GroupMember
 import com.example.splitmate.domain.model.MemberRole
+import com.example.splitmate.domain.model.Payment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -12,7 +13,7 @@ import java.time.Instant
 class BalanceCalculatorTest {
 
     private val timestamp =
-        Instant.parse("2026-10-02T10:00:00Z")
+        Instant.parse("2026-10-05T10:00:00Z")
 
     private val group = Group(
         id = "group-1",
@@ -52,6 +53,22 @@ class BalanceCalculatorTest {
             paidByUserId = paidByUserId,
             createdByUserId = "user-1",
             participantUserIds = participantUserIds,
+            createdAt = timestamp
+        )
+    }
+
+    private fun createPayment(
+        paymentId: String,
+        payerUserId: String,
+        recipientUserId: String,
+        amountInPaise: Long
+    ): Payment {
+        return PaymentFactory.createPayment(
+            paymentId = paymentId,
+            group = group,
+            payerUserId = payerUserId,
+            recipientUserId = recipientUserId,
+            amountInPaise = amountInPaise,
             createdAt = timestamp
         )
     }
@@ -175,6 +192,131 @@ class BalanceCalculatorTest {
 
         assertEquals(
             "Expenses cannot contain duplicates",
+            exception.message
+        )
+    }
+
+    @Test
+    fun `pending payment does not affect balances`() {
+        val expense = createEqualExpense(
+            expenseId = "expense-1",
+            totalAmountInPaise = 60_000,
+            paidByUserId = "user-1",
+            participantUserIds = listOf(
+                "user-1",
+                "user-2"
+            )
+        )
+
+        val payment = createPayment(
+            paymentId = "payment-1",
+            payerUserId = "user-2",
+            recipientUserId = "user-1",
+            amountInPaise = 30_000
+        )
+
+        val balances = BalanceCalculator.calculate(
+            group = group,
+            expenses = listOf(expense),
+            payments = listOf(payment)
+        )
+
+        assertEquals(30_000L, balances["user-1"])
+        assertEquals(-30_000L, balances["user-2"])
+        assertEquals(0L, balances["user-3"])
+    }
+
+    @Test
+    fun `confirmed payment updates balances`() {
+        val expense = createEqualExpense(
+            expenseId = "expense-1",
+            totalAmountInPaise = 60_000,
+            paidByUserId = "user-1",
+            participantUserIds = listOf(
+                "user-1",
+                "user-2"
+            )
+        )
+
+        val payment = createPayment(
+            paymentId = "payment-1",
+            payerUserId = "user-2",
+            recipientUserId = "user-1",
+            amountInPaise = 30_000
+        )
+
+        payment.confirm(
+            requestedByUserId = "user-1",
+            confirmedAt = timestamp.plusSeconds(60)
+        )
+
+        val balances = BalanceCalculator.calculate(
+            group = group,
+            expenses = listOf(expense),
+            payments = listOf(payment)
+        )
+
+        assertEquals(0L, balances["user-1"])
+        assertEquals(0L, balances["user-2"])
+        assertEquals(0L, balances["user-3"])
+    }
+
+    @Test
+    fun `rejected payment does not affect balances`() {
+        val expense = createEqualExpense(
+            expenseId = "expense-1",
+            totalAmountInPaise = 60_000,
+            paidByUserId = "user-1",
+            participantUserIds = listOf(
+                "user-1",
+                "user-2"
+            )
+        )
+
+        val payment = createPayment(
+            paymentId = "payment-1",
+            payerUserId = "user-2",
+            recipientUserId = "user-1",
+            amountInPaise = 30_000
+        )
+
+        payment.reject(
+            requestedByUserId = "user-1",
+            rejectedAt = timestamp.plusSeconds(60)
+        )
+
+        val balances = BalanceCalculator.calculate(
+            group = group,
+            expenses = listOf(expense),
+            payments = listOf(payment)
+        )
+
+        assertEquals(30_000L, balances["user-1"])
+        assertEquals(-30_000L, balances["user-2"])
+        assertEquals(0L, balances["user-3"])
+    }
+
+    @Test
+    fun `rejects duplicate payments`() {
+        val payment = createPayment(
+            paymentId = "payment-1",
+            payerUserId = "user-2",
+            recipientUserId = "user-1",
+            amountInPaise = 30_000
+        )
+
+        val exception = assertThrows(
+            IllegalArgumentException::class.java
+        ) {
+            BalanceCalculator.calculate(
+                group = group,
+                expenses = emptyList(),
+                payments = listOf(payment, payment)
+            )
+        }
+
+        assertEquals(
+            "Payments cannot contain duplicates",
             exception.message
         )
     }

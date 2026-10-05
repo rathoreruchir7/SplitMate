@@ -2,18 +2,28 @@ package com.example.splitmate.domain.service
 
 import com.example.splitmate.domain.model.Expense
 import com.example.splitmate.domain.model.Group
+import com.example.splitmate.domain.model.Payment
+import com.example.splitmate.domain.model.PaymentStatus
 
 object BalanceCalculator {
 
     fun calculate(
         group: Group,
-        expenses: List<Expense>
+        expenses: List<Expense>,
+        payments: List<Payment> = emptyList()
     ): Map<String, Long> {
         require(
             expenses.map { it.id }.distinct().size ==
                     expenses.size
         ) {
             "Expenses cannot contain duplicates"
+        }
+
+        require(
+            payments.map { it.id }.distinct().size ==
+                    payments.size
+        ) {
+            "Payments cannot contain duplicates"
         }
 
         val balances = group.members
@@ -52,6 +62,40 @@ object BalanceCalculator {
                     Math.subtractExact(
                         currentParticipantBalance,
                         share.amountInPaise
+                    )
+            }
+        }
+
+        payments.forEach { payment ->
+            require(payment.groupId == group.id) {
+                "Payment does not belong to the group"
+            }
+
+            require(group.hasMember(payment.payerUserId)) {
+                "Payment payer must be a group member"
+            }
+
+            require(group.hasMember(payment.recipientUserId)) {
+                "Payment recipient must be a group member"
+            }
+
+            if (payment.status == PaymentStatus.CONFIRMED) {
+                val currentPayerBalance =
+                    balances.getValue(payment.payerUserId)
+
+                balances[payment.payerUserId] =
+                    Math.addExact(
+                        currentPayerBalance,
+                        payment.amountInPaise
+                    )
+
+                val currentRecipientBalance =
+                    balances.getValue(payment.recipientUserId)
+
+                balances[payment.recipientUserId] =
+                    Math.subtractExact(
+                        currentRecipientBalance,
+                        payment.amountInPaise
                     )
             }
         }
