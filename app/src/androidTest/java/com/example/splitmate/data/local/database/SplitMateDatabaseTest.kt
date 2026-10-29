@@ -50,7 +50,7 @@ class SplitMateDatabaseTest {
     }
 
     @Test
-    fun `stores and reads complete group data`() = runBlocking {
+    fun storesAndReadsCompleteGroupData() = runBlocking {
         val userDao = database.userDao()
         val groupDao = database.groupDao()
         val expenseDao = database.expenseDao()
